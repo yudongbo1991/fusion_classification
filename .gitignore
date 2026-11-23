@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+.DS_Store
+.venv/
+.idea/
+.vscode/
+datasets/raw/
+datasets/prepared/
+outputs/
+*.pt
+*.pth
+*.npz
+*.mat
+*.log
