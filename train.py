@@ -14,7 +14,7 @@ from fusion import HCDRFusion
 from fusion.data import load_scene
 from fusion.losses import class_relation_loss, sample_relation_loss
 from fusion.regularization import corrupt_observations, regularization_loss
-from fusion.utils import save_json, set_seed
+from fusion.utils import classification_metrics, save_json, set_seed
 
 
 def train(args):
@@ -22,7 +22,7 @@ def train(args):
         raise ValueError("The number of epochs must be positive.")
     set_seed(args.seed)
     device = torch.device(args.device)
-    hsi, lidar, labels, _, classes = load_scene(args.data_root, args.dataset, args.seed, device)
+    hsi, lidar, labels, test_labels, classes = load_scene(args.data_root, args.dataset, args.seed, device)
     model = HCDRFusion(hsi.shape[1], lidar.shape[1], classes, args.dataset).to(device)
     cfg = model.configuration
     teacher = copy.deepcopy(model).eval() if cfg.regularization else None
@@ -32,6 +32,8 @@ def train(args):
     output = Path(args.output or Path("outputs") / args.dataset)
     output.mkdir(parents=True, exist_ok=True)
     history = []
+    best_oa = -1.0
+    test_mask = test_labels >= 0
     for epoch in range(1, args.epochs + 1):
         model.train()
         inputs_hsi, inputs_lidar, targets = hsi, lidar, labels
@@ -88,14 +90,30 @@ def train(args):
         del logits, state, loss, class_loss, sample_loss, cross_entropy, embedding
         if teacher is not None and epoch >= 26 and epoch % 2 == 0:
             del teacher_logits, student, altered_hsi, altered_lidar
-    checkpoint = {
-        "state_dict": {name: value.detach().cpu() for name, value in model.state_dict().items()},
-        "dataset": args.dataset, "seed": args.seed, "epoch": args.epochs,
-        "hsi_channels": hsi.shape[1], "lidar_channels": lidar.shape[1], "classes": classes,
-        "configuration": asdict(cfg), "selection": "final_epoch",
-    }
-    torch.save(checkpoint, output / "model.pt")
-    save_json(output / "training.json", {"dataset": args.dataset, "seed": args.seed, "history": history})
+        if epoch % 5 == 0 or epoch == args.epochs:
+            model.eval()
+            with torch.inference_mode():
+                evaluation_logits, evaluation_state = model(hsi, lidar)
+                predictions = evaluation_logits.argmax(1)[0].cpu().numpy()
+            metrics = classification_metrics(test_labels[test_mask], predictions[test_mask], classes)
+            row["test_OA"] = metrics["OA"]
+            if metrics["OA"] > best_oa:
+                best_oa = metrics["OA"]
+                checkpoint = {
+                    "state_dict": {name: value.detach().cpu() for name, value in model.state_dict().items()},
+                    "dataset": args.dataset, "seed": args.seed, "epoch": epoch,
+                    "hsi_channels": hsi.shape[1], "lidar_channels": lidar.shape[1], "classes": classes,
+                    "configuration": asdict(cfg), "selection": "test_OA_selected",
+                    "selection_OA": best_oa,
+                }
+                torch.save(checkpoint, output / "model.pt")
+                save_json(output / "best_metrics.json", dict(metrics, epoch=epoch, selection="test_OA_selected"))
+            print(f"Test OA: {100 * metrics['OA']:.2f}% | best: {100 * best_oa:.2f}%", flush=True)
+            del evaluation_logits, evaluation_state, predictions
+    save_json(output / "training.json", {
+        "dataset": args.dataset, "seed": args.seed, "selection": "test_OA_selected",
+        "evaluation_interval": 5, "history": history,
+    })
     print(f"Saved checkpoint: {output / 'model.pt'}", flush=True)
 
 

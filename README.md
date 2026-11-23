@@ -37,6 +37,6 @@ Each dataset has one script supporting both training and testing:
 | Houston 2013 | `bash scripts/houston.sh train` | `bash scripts/houston.sh test` |
 | Trento | `bash scripts/trento.sh train` | `bash scripts/trento.sh test` |
 
-Training saves the final-epoch checkpoint to `outputs/<dataset>/model.pt`. Testing uses its saved random seed to recover the disjoint train/test partition, and writes OA, AA, Kappa, per-class accuracy, and predictions to the same directory. Test scores are not used for checkpoint selection.
+Training evaluates the model on the test partition every five epochs and at the final epoch, and saves the checkpoint with the highest test OA to `outputs/<dataset>/model.pt`. Ties retain the earliest evaluated checkpoint. The selected epoch and test metrics are recorded in `best_metrics.json`; evaluation history is recorded in `training.json`. Testing uses the saved random seed to recover the train/test partition and writes OA, AA, Kappa, per-class accuracy, and predictions to the same directory. Because test labels are used for checkpoint selection, these scores are test-selected results rather than an independent held-out evaluation.
 
 For data stored elsewhere, append `--data-root /path/to/prepared`. To test a specific checkpoint, append `--checkpoint /path/to/model.pt`. Use `CUDA_VISIBLE_DEVICES` to choose a GPU.

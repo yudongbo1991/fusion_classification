@@ -32,7 +32,8 @@ def evaluate(args):
         predictions = logits.argmax(1)[0].cpu().numpy()
     selected = test_labels >= 0
     result = classification_metrics(test_labels[selected], predictions[selected], classes)
-    result.update(dataset=args.dataset, seed=seed, checkpoint_epoch=int(checkpoint["epoch"]))
+    result.update(dataset=args.dataset, seed=seed, checkpoint_epoch=int(checkpoint["epoch"]),
+                  selection=checkpoint.get("selection", "unspecified"))
     output = Path(args.output or Path("outputs") / args.dataset)
     output.mkdir(parents=True, exist_ok=True)
     save_json(output / "metrics.json", result)
