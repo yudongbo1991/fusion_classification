@@ -1,0 +1,7 @@
+The CUDA Bi-WKV implementation in fusion/cuda/bi_wkv.cpp and
+fusion/cuda/bi_wkv_kernel.cu is from Vision-RWKV:
+https://github.com/OpenGVLab/Vision-RWKV
+
+Copyright (c) 2025 Shanghai AI Lab.
+These files are distributed under Apache License 2.0. The license text is
+included in fusion/cuda/LICENSE. Original copyright notices are preserved.
